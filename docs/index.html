@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASCII Video</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: #0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: #111;
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #0f0;
+            box-shadow: 0 0 10px #0f0;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #0f0;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #0f0;
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: #0d0;
+            box-shadow: 0 0 10px #0f0;
+            transform: scale(1.05);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        .video-container {
+            display: none;
+            margin-bottom: 20px;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .video-container.active {
+            display: flex;
+        }
+
+        video {
+            max-width: 100%;
+            max-height: 500px;
+            border: 1px solid #0f0;
+        }
+
+        #canvas {
+            max-width: 100%;
+            max-height: 500px;
+            border: 1px solid #0f0;
+            background: #000;
+            overflow: auto;
+            flex: 1;
+            min-width: 300px;
+        }
+
+        #asciiOutput {
+            font-size: 12px;
+            line-height: 1;
+            word-break: break-all;
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .ascii-line {
+            display: flex;
+            flex-wrap: wrap;
+            word-break: break-all;
+        }
+
+        .ascii-char {
+            width: 12px;
+            height: 12px;
+            display: inline-block;
+            line-height: 1;
+        }
+
+        .playback-controls {
+            display: none;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .playback-controls.active {
+            display: flex;
+        }
+
+        #playbackSpeed {
+            padding: 8px 10px;
+            background: #1a1a1a;
+            color: #0f0;
+            border: 1px solid #0f0;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .info {
+            font-size: 12px;
+            color: #0f0;
+            margin-top: 20px;
+            padding: 10px;
+            background: #0a0a0a;
+            border-left: 2px solid #0f0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #1a1a1a;
+            border: 1px solid #0f0;
+            border-radius: 2px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #0f0;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 ASCII Video Generator</h1>
+        
+        <div class="controls">
+            <button id="uploadBtn">📹 Upload Video</button>
+            <input type="file" id="videoInput" accept="video/*">
+        </div>
+
+        <div class="video-container" id="videoContainer">
+            <video id="video" controls></video>
+            <div id="canvas">
+                <pre id="asciiOutput"></pre>
+            </div>
+        </div>
+
+        <div class="progress-bar" id="progressBar" style="display: none;">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+
+        <div class="playback-controls" id="playbackControls">
+            <button id="playBtn">▶️ Play ASCII</button>
+            <button id="pauseBtn">⏸️ Pause</button>
+            <button id="resetBtn">🔄 Reset</button>
+            <label for="playbackSpeed">Speed:</label>
+            <select id="playbackSpeed">
+                <option value="0.5">0.5x</option>
+                <option value="1" selected>1x</option>
+                <option value="1.5">1.5x</option>
+                <option value="2">2x</option>
+            </select>
+        </div>
+
+        <div class="info" id="info" style="display: none;">
+            <div>📊 Frame: <span id="frameCount">0</span> / <span id="totalFrames">0</span></div>
+            <div>⏱️ Time: <span id="timeDisplay">0:00</span></div>
+            <div>🎨 ASCII Width: <span id="asciiWidth">80</span> chars</div>
+        </div>
+    </div>
+
+    <script src="https://victorqribeiro.github.io/imgToAscii/src/ascii.js"></script>
+    <script>
+        const uploadBtn = document.getElementById('uploadBtn');
+        const videoInput = document.getElementById('videoInput');
+        const video = document.getElementById('video');
+        const asciiOutput = document.getElementById('asciiOutput');
+        const videoContainer = document.getElementById('videoContainer');
+        const playbackControls = document.getElementById('playbackControls');
+        const playBtn = document.getElementById('playBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const playbackSpeed = document.getElementById('playbackSpeed');
+        const info = document.getElementById('info');
+        const frameCountDisplay = document.getElementById('frameCount');
+        const totalFramesDisplay = document.getElementById('totalFrames');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const asciiWidthDisplay = document.getElementById('asciiWidth');
+        const progressBar = document.getElementById('progressBar');
+        const progressFill = document.getElementById('progressFill');
+
+        let isPlaying = false;
+        let frameCount = 0;
+        let totalFrames = 0;
+        let animationId = null;
+        let fps = 30;
+        let asciiWidth = 80;
+        let playbackSpeedValue = 1;
+
+        uploadBtn.addEventListener('click', () => {
+            videoInput.click();
+        });
+
+        videoInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                video.src = url;
+                video.onloadedmetadata = () => {
+                    videoContainer.classList.add('active');
+                    playbackControls.classList.add('active');
+                    info.style.display = 'block';
+                    progressBar.style.display = 'block';
+                    frameCount = 0;
+                    updateASCIIFrame();
+                    updateInfo();
+                };
+            }
+        });
+
+        video.addEventListener('play', () => {
+            isPlaying = true;
+            playBtn.disabled = true;
+            pauseBtn.disabled = false;
+            startASCIIPlayback();
+        });
+
+        video.addEventListener('pause', () => {
+            isPlaying = false;
+            playBtn.disabled = false;
+            pauseBtn.disabled = true;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+        });
+
+        video.addEventListener('timeupdate', updateInfo);
+        video.addEventListener('seeking', updateASCIIFrame);
+
+        playBtn.addEventListener('click', () => {
+            video.play();
+        });
+
+        pauseBtn.addEventListener('click', () => {
+            video.pause();
+        });
+
+        resetBtn.addEventListener('click', () => {
+            video.currentTime = 0;
+            frameCount = 0;
+            updateASCIIFrame();
+            updateInfo();
+        });
+
+        playbackSpeed.addEventListener('change', (e) => {
+            playbackSpeedValue = parseFloat(e.target.value);
+            video.playbackRate = playbackSpeedValue;
+        });
+
+        function updateASCIIFrame() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas dimensions to match video
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            // Draw current video frame
+            ctx.drawImage(video, 0, 0);
+            
+            // Get image data
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            
+            // Convert to colored ASCII
+            convertToColoredASCII(imageData, canvas.width, canvas.height);
+        }
+
+        function convertToColoredASCII(imageData, width, height) {
+            const chars = '@%#*+=-:. ';
+            const data = imageData.data;
+            const asciiLines = [];
+            
+            const charWidth = width / asciiWidth;
+            const charHeight = height / (asciiWidth / 2);
+            
+            for (let y = 0; y < height; y += charHeight) {
+                const line = document.createElement('div');
+                line.className = 'ascii-line';
+                
+                for (let x = 0; x < width; x += charWidth) {
+                    const idx = (Math.floor(y) * width + Math.floor(x)) * 4;
+                    const r = data[idx];
+                    const g = data[idx + 1];
+                    const b = data[idx + 2];
+                    const a = data[idx + 3];
+                    
+                    const brightness = (r + g + b) / 3;
+                    const charIdx = Math.floor((brightness / 255) * (chars.length - 1));
+                    
+                    const char = document.createElement('span');
+                    char.className = 'ascii-char';
+                    char.textContent = chars[charIdx];
+                    char.style.color = `rgb(${r},${g},${b})`;
+                    
+                    line.appendChild(char);
+                }
+                
+                asciiLines.push(line);
+            }
+            
+            // Clear and update output
+            asciiOutput.innerHTML = '';
+            asciiLines.forEach(line => asciiOutput.appendChild(line));
+        }
+
+        function startASCIIPlayback() {
+            const frameInterval = 1000 / (fps * playbackSpeedValue);
+            let lastFrameTime = Date.now();
+
+            function updateFrame() {
+                if (!isPlaying) return;
+
+                const now = Date.now();
+                if (now - lastFrameTime >= frameInterval) {
+                    updateASCIIFrame();
+                    lastFrameTime = now;
+                }
+
+                animationId = requestAnimationFrame(updateFrame);
+            }
+
+            updateFrame();
+        }
+
+        function updateInfo() {
+            frameCountDisplay.textContent = Math.floor(video.currentTime * fps);
+            totalFramesDisplay.textContent = Math.floor(video.duration * fps);
+            
+            const minutes = Math.floor(video.currentTime / 60);
+            const seconds = Math.floor(video.currentTime % 60);
+            timeDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            
+            const progress = (video.currentTime / video.duration) * 100;
+            progressFill.style.width = progress + '%';
+        }
+
+        // Initialize button states
+        playBtn.disabled = false;
+        pauseBtn.disabled = true;
+    </script>
+</body>
+</html>
